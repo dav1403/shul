@@ -12,7 +12,7 @@ import type { Synagogue, CustomSchedule, HebcalData } from "@/types";
 export const revalidate = 300;
 
 interface Props {
-  params: Promise<{ slug: string }>;
+  params: { slug: string };
 }
 
 async function getSynagogue(slug: string): Promise<Synagogue | null> {
@@ -36,7 +36,7 @@ async function getSchedules(synagogueId: string): Promise<CustomSchedule[]> {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug } = params;
   const synagogue = await getSynagogue(slug);
   if (!synagogue) return { title: "Synagogue introuvable" };
 
@@ -66,7 +66,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function SynagoguePage({ params }: Props) {
-  const { slug } = await params;
+  const { slug } = params;
   const synagogue = await getSynagogue(slug);
   if (!synagogue) notFound();
 
