@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "shul.fr — Votre synagogue sur le web, depuis WhatsApp",
+  title: "shul — Votre synagogue sur le web, depuis WhatsApp",
   description:
     "Donnez à votre synagogue une présence web en quelques minutes. Envoyez un WhatsApp, votre site se met à jour.",
 };
@@ -16,7 +16,7 @@ const steps = [
   {
     icon: "🔗",
     title: "Recevez votre lien",
-    desc: "En 30 secondes, votre page est en ligne sur shul.fr/votre-synagogue.",
+    desc: "En 30 secondes, votre page est en ligne sur shul/votre-synagogue.",
   },
   {
     icon: "✏️",
@@ -40,7 +40,7 @@ export default function HomePage() {
   const waNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "";
   const waUrl = waNumber
     ? `https://wa.me/${waNumber.replace("+", "")}?text=${encodeURIComponent(
-        "Bonjour, je souhaite créer la page de ma synagogue sur shul.fr"
+        "Bonjour, je souhaite créer la page de ma synagogue sur shul"
       )}`
     : "#";
 
@@ -75,7 +75,7 @@ export default function HomePage() {
           href="/bethel"
           className="inline-flex items-center gap-1 text-primary-700 font-medium underline decoration-dotted hover:text-primary-900"
         >
-          shul.fr/bethel →
+          shul/bethel →
         </Link>
       </section>
 
@@ -121,7 +121,7 @@ export default function HomePage() {
         <div className="max-w-xl mx-auto">
           <h2 className="text-2xl font-bold mb-4">Gratuit pour les 10 premières synagogues</h2>
           <p className="text-primary-200 mb-8">
-            Bêta ouverte — rejoignez les premières synagogues sur shul.fr
+            Bêta ouverte — rejoignez les premières synagogues sur shul
           </p>
           <a
             href={waUrl}
@@ -135,7 +135,7 @@ export default function HomePage() {
       </section>
 
       <footer className="border-t border-slate-100 px-6 py-8 text-center text-xs text-slate-400">
-        <p>shul.fr — Service gratuit en bêta</p>
+        <p>shul — Service gratuit en bêta</p>
       </footer>
     </div>
   );

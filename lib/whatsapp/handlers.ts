@@ -129,7 +129,7 @@ async function handleOnboarding(
       await upsertConversationState(phone, "onboarding_name", {});
       await adapter.sendMessage({
         to: phone,
-        text: "Chalom ! Bienvenue sur shul.fr 🕍\n\nJe vais créer la page web de votre synagogue en quelques minutes.\n\nQuel est le nom de votre synagogue ?",
+        text: "Chalom ! Bienvenue sur shul 🕍\n\nJe vais créer la page web de votre synagogue en quelques minutes.\n\nQuel est le nom de votre synagogue ?",
       });
       return;
     }
@@ -184,7 +184,7 @@ async function handleOnboarding(
 
     await deleteConversationState(phone);
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul.fr";
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul";
     await adapter.sendMessage({
       to: phone,
       text: `✅ Votre synagogue est en ligne !\n\n🔗 ${siteUrl}/${slug}\n\nVous pouvez maintenant m'envoyer des messages pour mettre à jour les horaires, ajouter une photo, ou modifier les informations. Je suis là 24h/24 !`,
@@ -297,7 +297,7 @@ async function applyIntent(
     }
 
     case "query_status": {
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul.fr";
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul";
       await adapter.sendMessage({
         to: phone,
         text: `🕍 *${synagogue.name}*\n📍 ${synagogue.address ?? ""}, ${synagogue.city ?? ""}\n🔗 ${siteUrl}/${synagogue.slug}`,

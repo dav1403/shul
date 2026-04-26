@@ -1,4 +1,4 @@
-# shul.fr
+# shul
 
 MVP "No-Interface Agency" pour synagogues — gérez votre site web 100% via WhatsApp.
 

@@ -6,13 +6,13 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: {
-    default: "shul.fr — Votre synagogue sur le web, depuis WhatsApp",
-    template: "%s | shul.fr",
+    default: "shul — Votre synagogue sur le web, depuis WhatsApp",
+    template: "%s | shul",
   },
   description:
     "Donnez à votre synagogue une présence web en quelques minutes. Mettez à jour les horaires, la photo et les actualités directement depuis WhatsApp.",
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul.fr"
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul"
   ),
 };
 

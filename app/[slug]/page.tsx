@@ -40,7 +40,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const synagogue = await getSynagogue(slug);
   if (!synagogue) return { title: "Synagogue introuvable" };
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul.fr";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul";
   const description = `Horaires des offices, informations pratiques et actualités de la ${synagogue.name} à ${synagogue.city ?? "France"}.`;
 
   return {
@@ -50,7 +50,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: synagogue.name,
       description,
       url: `${siteUrl}/${slug}`,
-      siteName: "shul.fr",
+      siteName: "shul",
       images: synagogue.photo_url
         ? [{ url: synagogue.photo_url, alt: synagogue.name }]
         : [],
@@ -77,7 +77,7 @@ export default async function SynagoguePage({ params }: Props) {
       : Promise.resolve(null),
   ]);
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul.fr";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul";
 
   // JSON-LD structuré pour SEO
   const jsonLd = {
@@ -143,7 +143,7 @@ export default async function SynagoguePage({ params }: Props) {
                 href={siteUrl}
                 className="underline decoration-dotted hover:text-slate-600"
               >
-                shul.fr
+                shul
               </a>{" "}
               — Créez le vôtre gratuitement
             </p>
