@@ -2,22 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdapter } from "@/lib/whatsapp/adapter";
 import { handleIncomingMessage } from "@/lib/whatsapp/handlers";
 
-// Vérification de signature HMAC-SHA256 (Meta envoie x-hub-signature-256)
+// Vérification de signature HMAC-SHA256 avec META_APP_SECRET
+// Meta signe le payload avec l'App Secret (pas le verify token)
 async function verifyMetaSignature(req: NextRequest, body: string): Promise<boolean> {
-  const secret = process.env.WHATSAPP_WEBHOOK_SECRET;
-  if (!secret) return true;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appSecret) return true; // skip si non configuré
 
-  const signature =
-    req.headers.get("x-hub-signature-256") ??
-    req.headers.get("x-webhook-signature") ??
-    "";
-
-  if (!signature) return true; // skip si pas de header (dev/mock)
+  const signature = req.headers.get("x-hub-signature-256") ?? "";
+  if (!signature) return true;
 
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(secret),
+    encoder.encode(appSecret),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
