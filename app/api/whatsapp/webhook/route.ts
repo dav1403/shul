@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { createAdapter } from "@/lib/whatsapp/adapter";
 import { handleIncomingMessage } from "@/lib/whatsapp/handlers";
 
-// Schéma minimal du payload normalisé
-const WebhookPayloadSchema = z.object({
-  from: z.string().min(1),
-  text: z.string().default(""),
-  mediaUrl: z.string().url().optional(),
-  mediaType: z.string().optional(),
-  timestamp: z.string().optional(),
-  providerId: z.string().optional(),
-});
-
-// Vérification de signature (HMAC-SHA256) si WHATSAPP_WEBHOOK_SECRET est défini
-async function verifySignature(req: NextRequest, body: string): Promise<boolean> {
+// Vérification de signature HMAC-SHA256 (Meta envoie x-hub-signature-256)
+async function verifyMetaSignature(req: NextRequest, body: string): Promise<boolean> {
   const secret = process.env.WHATSAPP_WEBHOOK_SECRET;
-  if (!secret) return true; // Pas de secret configuré → skip en dev
+  if (!secret) return true;
 
-  const signature = req.headers.get("x-webhook-signature") ?? "";
+  const signature =
+    req.headers.get("x-hub-signature-256") ??
+    req.headers.get("x-webhook-signature") ??
+    "";
+
+  if (!signature) return true; // skip si pas de header (dev/mock)
+
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -34,7 +29,6 @@ async function verifySignature(req: NextRequest, body: string): Promise<boolean>
       .map((b) => b.toString(16).padStart(2, "0"))
       .join("");
 
-  // Comparaison en temps constant
   if (expected.length !== signature.length) return false;
   let mismatch = 0;
   for (let i = 0; i < expected.length; i++) {
@@ -51,7 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
 
-  const valid = await verifySignature(req, body);
+  const valid = await verifyMetaSignature(req, body);
   if (!valid) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
@@ -63,31 +57,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const parsed = WebhookPayloadSchema.safeParse(rawPayload);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid payload", details: parsed.error.issues },
-      { status: 422 }
-    );
+  // Meta envoie des notifications de statut (delivered, read) — on les ignore
+  const p = rawPayload as Record<string, unknown>;
+  const firstEntry = (p.entry as Record<string, unknown>[])?.[0];
+  const firstChange = (firstEntry?.changes as Record<string, unknown>[])?.[0];
+  const value = firstChange?.value as Record<string, unknown>;
+  if (value && !value.messages) {
+    return NextResponse.json({ ok: true }); // statut update, rien à faire
   }
 
   const adapter = createAdapter();
 
   try {
-    const msg = adapter.parseIncoming(parsed.data);
-    // Traitement async sans bloquer la réponse HTTP (WhatsApp attend < 5s)
+    const msg = adapter.parseIncoming(rawPayload);
     handleIncomingMessage(msg, adapter).catch((err) =>
       console.error("[webhook] handleIncomingMessage error:", err)
     );
   } catch (err) {
     console.error("[webhook] parseIncoming error:", err);
-    return NextResponse.json({ error: "Parse error" }, { status: 500 });
+    // On retourne 200 quand même pour que Meta ne réessaie pas en boucle
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ ok: true });
 }
 
-// Vérification webhook (GET) pour certains providers (Meta, etc.)
+// Vérification webhook GET — Meta envoie hub.mode, hub.verify_token, hub.challenge
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const mode = searchParams.get("hub.mode");

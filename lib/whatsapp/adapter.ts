@@ -142,27 +142,42 @@ export class WhatsAppCloudAdapter implements WhatsAppAdapter {
   }
 
   parseIncoming(rawPayload: unknown): IncomingMessage {
-    // TODO: implémenter selon le format Meta Cloud API
     const p = rawPayload as Record<string, unknown>;
     const entry = (p.entry as Record<string, unknown>[])?.[0];
     const change = (entry?.changes as Record<string, unknown>[])?.[0];
     const value = change?.value as Record<string, unknown>;
     const messages = value?.messages as Record<string, unknown>[];
-    const message = messages?.[0] ?? {};
+    const message = messages?.[0] as Record<string, unknown>;
+
+    if (!message) throw new Error("No message in payload");
+
+    const type = String(message.type ?? "text");
+    let text = "";
+    let mediaUrl: string | undefined;
+    let mediaType: string | undefined;
+
+    if (type === "text") {
+      text = String((message.text as Record<string, unknown>)?.body ?? "");
+    } else if (type === "image" || type === "audio" || type === "video" || type === "document") {
+      const media = message[type] as Record<string, unknown>;
+      mediaType = String(media?.mime_type ?? `${type}/jpeg`);
+      // L'URL réelle nécessite un appel Media API — on stocke l'ID pour résolution ultérieure
+      mediaUrl = `https://graph.facebook.com/v18.0/${media?.id}`;
+      text = "";
+    }
 
     return {
-      from: String((message.from as string) ?? ""),
-      text: String(
-        ((message.text as Record<string, unknown>)?.body as string) ?? ""
-      ),
+      from: `+${String(message.from ?? "")}`,
+      text,
+      mediaUrl,
+      mediaType,
       timestamp: new Date(Number(message.timestamp ?? 0) * 1000),
-      providerId: String((message.id as string) ?? ""),
+      providerId: String(message.id ?? ""),
     };
   }
 
   async sendMessage(msg: OutgoingMessage): Promise<void> {
-    // TODO: implémenter via Meta Cloud API
-    await fetch(
+    const resp = await fetch(
       `https://graph.facebook.com/v18.0/${this.phoneNumberId}/messages`,
       {
         method: "POST",
@@ -178,6 +193,10 @@ export class WhatsAppCloudAdapter implements WhatsAppAdapter {
         }),
       }
     );
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`Meta API error ${resp.status}: ${err}`);
+    }
   }
 }
 

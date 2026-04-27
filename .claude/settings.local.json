@@ -5,7 +5,9 @@
       "Bash(npx create-next-app@latest *)",
       "PowerShell(npm *)",
       "PowerShell(gh *)",
-      "PowerShell(vercel *)"
+      "PowerShell(vercel *)",
+      "WebFetch(domain:shul-two.vercel.app)",
+      "WebFetch(domain:docs.2chat.io)"
     ]
   }
 }
