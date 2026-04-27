@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://shul"
   ),
+  other: {
+    "facebook-domain-verification": "xai0kcvw79052kv4luudq3lu2uof69",
+  },
 };
 
 export default function RootLayout({
