@@ -54,34 +54,47 @@ export class MockAdapter implements WhatsAppAdapter {
 // ── TwoChatAdapter ───────────────────────────────────────────
 export class TwoChatAdapter implements WhatsAppAdapter {
   private apiKey: string;
+  private phoneNumber: string;
   private apiUrl: string;
 
-  constructor(apiKey: string, apiUrl = "https://api.2chat.io/v1") {
+  constructor(apiKey: string, phoneNumber: string, apiUrl = "https://api.2chat.io/v1") {
     this.apiKey = apiKey;
+    this.phoneNumber = phoneNumber;
     this.apiUrl = apiUrl;
   }
 
   parseIncoming(rawPayload: unknown): IncomingMessage {
-    // TODO: implémenter selon la doc 2Chat
     const p = rawPayload as Record<string, unknown>;
+    // 2Chat envoie { event: "message:received", data: { from, body, id, timestamp, media_url, mime_type } }
+    if (p.event !== "message:received") throw new Error("Not an incoming message event");
+    const data = p.data as Record<string, unknown>;
     return {
-      from: String(p.from ?? ""),
-      text: String((p as Record<string, unknown>)?.message ?? ""),
-      timestamp: new Date(),
-      providerId: String(p.id ?? ""),
+      from: String(data?.from ?? ""),
+      text: String(data?.body ?? ""),
+      mediaUrl: data?.media_url ? String(data.media_url) : undefined,
+      mediaType: data?.mime_type ? String(data.mime_type) : undefined,
+      timestamp: data?.timestamp ? new Date(Number(data.timestamp) * 1000) : new Date(),
+      providerId: String(data?.id ?? ""),
     };
   }
 
   async sendMessage(msg: OutgoingMessage): Promise<void> {
-    // TODO: implémenter l'appel HTTP 2Chat
-    await fetch(`${this.apiUrl}/messages/send`, {
+    const resp = await fetch(`${this.apiUrl}/messages/send-text`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
+        "user-api-key": this.apiKey,
       },
-      body: JSON.stringify({ to: msg.to, message: msg.text }),
+      body: JSON.stringify({
+        phone_number: msg.to,
+        message: msg.text,
+        channel_number: this.phoneNumber,
+      }),
     });
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`2Chat API error ${resp.status}: ${err}`);
+    }
   }
 }
 
@@ -206,7 +219,10 @@ export function createAdapter(): WhatsAppAdapter {
 
   switch (provider) {
     case "twochat":
-      return new TwoChatAdapter(process.env.TWOCHAT_API_KEY ?? "");
+      return new TwoChatAdapter(
+        process.env.TWOCHAT_API_KEY ?? "",
+        process.env.TWOCHAT_PHONE_NUMBER ?? ""
+      );
     case "twilio":
       return new TwilioAdapter(
         process.env.TWILIO_ACCOUNT_SID ?? "",
