@@ -213,11 +213,82 @@ export class WhatsAppCloudAdapter implements WhatsAppAdapter {
   }
 }
 
+// ── GreenAPIAdapter ──────────────────────────────────────────
+export class GreenAPIAdapter implements WhatsAppAdapter {
+  private idInstance: string;
+  private apiToken: string;
+  private apiUrl: string;
+
+  constructor(idInstance: string, apiToken: string) {
+    this.idInstance = idInstance;
+    this.apiToken = apiToken;
+    this.apiUrl = `https://api.green-api.com/waInstance${idInstance}`;
+  }
+
+  parseIncoming(rawPayload: unknown): IncomingMessage {
+    const p = rawPayload as Record<string, unknown>;
+    // Green API envoie plusieurs typeWebhook — on ne traite que les messages entrants
+    if (p.typeWebhook !== "incomingMessageReceived") throw new Error("Not an incoming message");
+
+    const senderData = p.senderData as Record<string, unknown>;
+    const messageData = p.messageData as Record<string, unknown>;
+    const typeMessage = String(messageData?.typeMessage ?? "");
+
+    // Green API format: "79001234567@c.us" → E.164: "+79001234567"
+    const rawSender = String(senderData?.sender ?? "");
+    const from = "+" + rawSender.replace("@c.us", "");
+
+    let text = "";
+    let mediaUrl: string | undefined;
+    let mediaType: string | undefined;
+
+    if (typeMessage === "textMessage") {
+      const textData = messageData.textMessageData as Record<string, unknown>;
+      text = String(textData?.textMessage ?? "");
+    } else if (["imageMessage", "videoMessage", "audioMessage", "documentMessage"].includes(typeMessage)) {
+      const fileData = messageData.fileMessageData as Record<string, unknown>;
+      mediaUrl = String(fileData?.downloadUrl ?? "");
+      mediaType = String(fileData?.mimeType ?? "");
+      text = String(fileData?.caption ?? "");
+    }
+
+    return {
+      from,
+      text,
+      mediaUrl,
+      mediaType,
+      timestamp: p.timestamp ? new Date(Number(p.timestamp) * 1000) : new Date(),
+      providerId: String(p.idMessage ?? ""),
+    };
+  }
+
+  async sendMessage(msg: OutgoingMessage): Promise<void> {
+    // E.164 "+79001234567" → Green API format "79001234567@c.us"
+    const chatId = msg.to.replace("+", "") + "@c.us";
+
+    const resp = await fetch(`${this.apiUrl}/sendMessage/${this.apiToken}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId, message: msg.text }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`Green API error ${resp.status}: ${err}`);
+    }
+  }
+}
+
 // ── Factory ──────────────────────────────────────────────────
 export function createAdapter(): WhatsAppAdapter {
   const provider = process.env.WHATSAPP_PROVIDER ?? "mock";
 
   switch (provider) {
+    case "greenapi":
+      return new GreenAPIAdapter(
+        process.env.GREENAPI_ID_INSTANCE ?? "",
+        process.env.GREENAPI_API_TOKEN ?? ""
+      );
     case "twochat":
       return new TwoChatAdapter(
         process.env.TWOCHAT_API_KEY ?? "",
