@@ -199,7 +199,8 @@ async function applyIntent(
   intent: ParsedIntent,
   synagogue: Synagogue,
   phone: string,
-  adapter: WhatsAppAdapter
+  adapter: WhatsAppAdapter,
+  rawMessage: string
 ): Promise<void> {
   const db = createServiceClient();
 
@@ -231,7 +232,7 @@ async function applyIntent(
         to: phone,
         text: `✅ ${label} mis à jour : ${time}`,
       });
-      await logModification(synagogue.id, phone, intent.human_summary, intent, `update_schedule:${service_type}:${time}`);
+      await logModification(synagogue.id, phone, rawMessage, intent, `update_schedule:${service_type}:${time}`);
       break;
     }
 
@@ -245,7 +246,7 @@ async function applyIntent(
         to: phone,
         text: "✅ Le message du rabbin a été mis à jour.",
       });
-      await logModification(synagogue.id, phone, intent.human_summary, intent, "update_rabbi_word");
+      await logModification(synagogue.id, phone, rawMessage, intent, "update_rabbi_word");
       break;
     }
 
@@ -267,7 +268,7 @@ async function applyIntent(
         to: phone,
         text: `✅ Lien ${platform} mis à jour.`,
       });
-      await logModification(synagogue.id, phone, intent.human_summary, intent, `update_social:${platform}`);
+      await logModification(synagogue.id, phone, rawMessage, intent, `update_social:${platform}`);
       break;
     }
 
@@ -279,12 +280,17 @@ async function applyIntent(
       const updates: Record<string, string> = {};
       if (newPhone) updates.phone = newPhone;
       if (email) updates.email = email;
+      // Ne rien faire si aucune donnée de contact n'est parsée
+      if (Object.keys(updates).length === 0) {
+        await adapter.sendMessage({ to: phone, text: "Je n'ai pas trouvé de coordonnées à mettre à jour. Précisez un numéro de téléphone ou un email." });
+        break;
+      }
       await db.from("synagogues").update(updates).eq("id", synagogue.id);
       await adapter.sendMessage({
         to: phone,
         text: "✅ Coordonnées mises à jour.",
       });
-      await logModification(synagogue.id, phone, intent.human_summary, intent, "update_contact");
+      await logModification(synagogue.id, phone, rawMessage, intent, "update_contact");
       break;
     }
 
@@ -342,7 +348,7 @@ export async function handleIncomingMessage(
     const pendingAction = conv.context.pending_action as ParsedIntent | undefined;
     if (pendingAction && ["oui", "yes", "כן", "o"].includes(msg.text.trim().toLowerCase())) {
       await deleteConversationState(phone);
-      await applyIntent(pendingAction, synagogue, phone, adapter);
+      await applyIntent(pendingAction, synagogue, phone, adapter, pendingAction.human_summary);
     } else {
       await deleteConversationState(phone);
       await adapter.sendMessage({
@@ -371,7 +377,7 @@ export async function handleIncomingMessage(
     return;
   }
 
-  await applyIntent(intent, synagogue, phone, adapter);
+  await applyIntent(intent, synagogue, phone, adapter, msg.text);
 }
 
 async function handlePhotoUpload(
@@ -383,7 +389,14 @@ async function handlePhotoUpload(
   if (!synagogue || !msg.mediaUrl) return;
 
   try {
-    const resp = await fetch(msg.mediaUrl);
+    // NOTE: Pour WhatsApp Cloud API, msg.mediaUrl est graph.facebook.com/v18.0/{id}
+    // et nécessite un header Authorization: Bearer {META_ACCESS_TOKEN}.
+    // Avec les autres providers (Green API, Twilio, 2Chat), l'URL est directement téléchargeable.
+    const mediaHeaders: HeadersInit = {};
+    if (process.env.META_ACCESS_TOKEN && msg.mediaUrl?.includes("graph.facebook.com")) {
+      mediaHeaders["Authorization"] = `Bearer ${process.env.META_ACCESS_TOKEN}`;
+    }
+    const resp = await fetch(msg.mediaUrl, { headers: mediaHeaders });
     const buffer = await resp.arrayBuffer();
     const ext = msg.mediaType?.split("/")[1] ?? "jpg";
     const path = `synagogues/${synagogue.slug}/photo.${ext}`;
