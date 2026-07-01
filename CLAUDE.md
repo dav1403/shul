@@ -8,8 +8,9 @@ Concept : un WhatsApp envoyé = la page publique se met à jour. Zéro interface
 - **Repo GitHub :** github.com/dav1403/shul (remote vérifié 23/06/2026 ; `shul-fr` existe aussi sur GitHub mais le remote local pointe sur `shul`)
 - **Chemin local :** `C:\Users\David\AI\SHUL\`
 - **Stack :** Next.js 14 App Router + Supabase + Claude Haiku + Hebcal + Tailwind
-- **Déploiement :** Vercel actif depuis 27/04/2026 — prod live `https://shul-two.vercel.app` (HTTP 200 vérifié 23/06/2026)
-- **Domaine cible :** shul.fr (non encore acquis)
+- **Déploiement :** Vercel actif depuis 27/04/2026 — prod `https://shul-two.vercel.app` (HTTP 200 vérifié 23/06/2026)
+- **Domaine public LIVE : `https://washule.com`** (titre « Washule », https OK — vérifié 25/06/2026). **DNS chez GoDaddy** (ns*.domaincontrol.com), A = 13.248.243.5 (AWS) → DNS non éditable par Claude (pas d'accès GoDaddy). **Propriété GSC `washule.com` créée et vérifiée par David le 25/06/2026.** ⚠️ La mention « pas déployé » d'anciennes fiches/TASKS est **fausse** : le projet est en ligne sur washule.com.
+- **Ancien domaine cible :** shul.fr (jamais acquis ; washule.com l'a remplacé)
 
 ## Architecture
 
