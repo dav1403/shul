@@ -1,10 +1,24 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+import { askJSON } from "@/lib/vendor/layos/claude";
 import type { ParsedIntent } from "@/types";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+/**
+ * Le parsing d'intention passe par la brique layOS B2 (`lib/vendor/layos/claude.ts`)
+ * plutôt que par un appel SDK maison. Deux défauts réels disparaissent :
+ *   1. la réponse était lue via `response.content[0]` — avec la pensée adaptative
+ *      des modèles récents, ce premier bloc peut être un bloc `thinking`, et le
+ *      parsing tombait alors systématiquement en `unclear`. La brique filtre les
+ *      blocs par type `text` et les concatène ;
+ *   2. aucun retry : un 429 ou un 5xx transitoire renvoyait `unclear` au
+ *      responsable de synagogue. La brique retente 4 fois (backoff + jitter).
+ * La brique fournit aussi le parse JSON à 3 étages (direct → fences → 1er objet),
+ * qui remplace la regex maison.
+ *
+ * La clé vit dans `ANTHROPIC_API_KEY` (lue paresseusement par la brique).
+ */
+
+/** Modèle défini ICI : la brique ne doit jamais imposer son défaut au consommateur. */
+const MODEL = "claude-haiku-4-5-20251001";
 
 const SYSTEM_PROMPT = `Tu es un assistant spécialisé dans la gestion de synagogues. Tu analyses des messages WhatsApp envoyés par des responsables de synagogue (rabbins, secrétaires, présidents).
 
@@ -74,25 +88,18 @@ const ParsedIntentSchema = z.object({
 });
 
 export async function parseIntent(message: string): Promise<ParsedIntent> {
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: message }],
-  });
-
-  const content = response.content[0];
-  if (content.type !== "text") {
-    return fallbackUnclear("Réponse inattendue du modèle");
-  }
-
   let raw: unknown;
   try {
-    // Extrait le JSON même si le modèle ajoute des backticks
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("Pas de JSON trouvé");
-    raw = JSON.parse(jsonMatch[0]);
-  } catch {
+    raw = await askJSON<unknown>(message, {
+      model: MODEL,
+      maxTokens: 512,
+      system: SYSTEM_PROMPT,
+    });
+  } catch (err) {
+    // Seul un échec de PARSE dégrade en "unclear" : une panne d'API (déjà
+    // retentée 4 fois par la brique) doit remonter, comme avant l'intégration,
+    // plutôt que d'être maquillée en message incompris.
+    if (!isParseFailure(err)) throw err;
     return fallbackUnclear("Impossible de parser la réponse JSON");
   }
 
@@ -102,6 +109,13 @@ export async function parseIntent(message: string): Promise<ParsedIntent> {
   }
 
   return result.data as ParsedIntent;
+}
+
+/** Vrai si l'erreur vient du parse JSON de la brique, pas du transport HTTP. */
+function isParseFailure(err: unknown): boolean {
+  if (err instanceof SyntaxError) return true;
+  const message = (err as { message?: unknown } | null)?.message;
+  return typeof message === "string" && message.includes("extractJson");
 }
 
 function fallbackUnclear(reason: string): ParsedIntent {

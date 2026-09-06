@@ -25,13 +25,39 @@ app/
 lib/
 ├── whatsapp/adapter.ts    — Adaptateurs : Mock + GreenAPI + 2Chat + Twilio + WhatsApp Cloud
 ├── whatsapp/handlers.ts   — Logique métier (onboarding, intentions, confirmation)
-├── claude/intent.ts       — Parsing multilingue fr/he/en via Haiku
+├── claude/intent.ts       — Parsing multilingue fr/he/en via Haiku (consomme la brique B2)
+├── vendor/layos/claude.ts — VENDORÉ : brique layOS B2 (wrapper Claude commun)
 └── hebcal/client.ts       — Cache 6h + zmanim + fêtes
 
 supabase/
 ├── schema.sql             — DDL complet + RLS
 └── seed.sql               — Synagogue "bethel" (Paris, geoname 2988507)
 ```
+
+## Brique layOS B2 vendorée (06/09/2026)
+
+`lib/claude/intent.ts` n'instancie plus le SDK Anthropic lui-même : il appelle
+`askJSON` de la brique layOS B2, **vendorée bit-à-bit** sous
+`lib/vendor/layos/claude.ts` (source canonique : `dav1403/layOS -> bricks/claude.ts`).
+
+Deux défauts réels supprimés au passage :
+1. la réponse était lue via `response.content[0]` — avec la pensée adaptative des
+   modèles récents ce premier bloc peut être un bloc `thinking`, et tout message
+   retombait alors en `unclear`. La brique filtre les blocs de type `text` ;
+2. aucun retry — un 429 ou un 5xx transitoire dégradait la réponse du responsable
+   de synagogue. La brique retente 4 fois (backoff exponentiel + jitter).
+
+Le parse JSON à 3 étages de la brique (direct → fences ```json → 1er objet)
+remplace la regex maison. Le modèle reste défini dans `intent.ts` et passé
+explicitement : la brique n'impose jamais son défaut à un consommateur.
+
+⚠️ **Ne jamais éditer `lib/vendor/layos/claude.ts`** : corriger en amont dans
+layOS puis re-copier. `__tests__/vendor-parity.test.ts` fige un SHA-256 du
+contenu normalisé et casse à la moindre dérive (même hash que YONI et
+ProcedureFrance, qui vendorent la même brique).
+
+Effet de bord assumé : `@anthropic-ai/sdk` est passé de `^0.39.0` à `^0.124.0`
+(la brique utilise des types absents de 0.39), alignant SHUL sur YONI.
 
 ## État au 23/06/2026
 
@@ -42,7 +68,7 @@ Ce qui est implémenté et fonctionnel :
 - **5 adaptateurs provider** : MockAdapter, GreenAPIAdapter (ajouté commit f31581c), TwoChatAdapter, TwilioAdapter, WhatsAppCloudAdapter
 - Page publique SSR+ISR avec SEO complet (JSON-LD PlaceOfWorship, OG tags)
 - Intégration Hebcal (zmanim, paracha, fêtes)
-- Suite de 6 tests unitaires (intent parsing)
+- Suite de tests unitaires : intent parsing + parité de la brique vendorée
 - Script de conversation complète pour tester sans provider
 - Politique de confidentialité RGPD
 - Facebook domain verification meta-tag (commit b931ec8)

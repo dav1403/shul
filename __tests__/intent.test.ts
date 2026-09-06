@@ -1,75 +1,51 @@
 /**
  * Tests unitaires sur le parsing d'intention.
- * Ces tests mockent l'API Anthropic pour fonctionner sans clé.
+ * L'SDK Anthropic est mocké : ces tests tournent sans clé réseau.
+ *
+ * ⚠️ Depuis l'intégration de la brique layOS B2, le client Anthropic est un
+ * singleton paresseux CONSTRUIT UNE SEULE FOIS pour tout le fichier de test.
+ * On ne peut donc plus ré-implémenter le constructeur test par test : le mock
+ * expose un `messages.create` stable (`mockCreate`) que chaque test reconfigure.
  */
 
-import { jest } from "@jest/globals";
+const mockCreate = jest.fn();
 
-// Mock de l'SDK Anthropic avant tout import
-jest.mock("@anthropic-ai/sdk", () => {
-  return {
-    default: jest.fn().mockImplementation(() => ({
-      messages: {
-        create: jest.fn(),
-      },
-    })),
-  };
-});
+jest.mock("@anthropic-ai/sdk", () => ({
+  __esModule: true,
+  default: jest.fn().mockImplementation(() => ({
+    messages: { create: mockCreate },
+  })),
+}));
 
-import Anthropic from "@anthropic-ai/sdk";
 import { parseIntent } from "@/lib/claude/intent";
 
-function mockAnthropicResponse(jsonContent: string) {
-  const instance = new (Anthropic as jest.MockedClass<typeof Anthropic>)();
-  (instance.messages.create as jest.MockedFunction<typeof instance.messages.create>).mockResolvedValue({
-    id: "msg_test",
-    type: "message",
-    role: "assistant",
-    content: [{ type: "text", text: jsonContent }],
-    model: "claude-haiku-4-5-20251001",
-    stop_reason: "end_turn",
-    stop_sequence: null,
-    usage: { input_tokens: 10, output_tokens: 50 },
-  } as Awaited<ReturnType<typeof instance.messages.create>>);
+/** La brique refuse de tourner sans clé (client paresseux). */
+process.env.ANTHROPIC_API_KEY = "dummy-key-for-tests";
+
+/** Réponse SDK minimale : uniquement ce que la brique lit (`content`). */
+function reply(blocks: Array<Record<string, unknown>>) {
+  return { content: blocks };
 }
+
+const textReply = (text: string) => reply([{ type: "text", text }]);
+
+const jsonReply = (payload: Record<string, unknown>) =>
+  textReply(JSON.stringify(payload));
 
 describe("parseIntent", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    // Réinitialiser le mock pour chaque test
-    const MockedAnthropic = Anthropic as jest.MockedClass<typeof Anthropic>;
-    MockedAnthropic.mockImplementation(() => ({
-      messages: {
-        create: jest.fn(),
-      },
-    }) as unknown as InstanceType<typeof Anthropic>);
+    mockCreate.mockReset();
   });
 
   it("detecte une mise à jour d'horaire de Chabbat soir", async () => {
-    const mockCreate = jest.fn().mockResolvedValue({
-      id: "msg_1",
-      type: "message",
-      role: "assistant",
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            intent: "update_schedule",
-            confidence: 0.97,
-            params: { service_type: "shabbat_evening", time: "19:30", day_of_week: 5 },
-            needs_confirmation: true,
-            human_summary: "Office du Chabbat soir à 19h30 le vendredi",
-          }),
-        },
-      ],
-      model: "claude-haiku-4-5-20251001",
-      stop_reason: "end_turn",
-      stop_sequence: null,
-      usage: { input_tokens: 10, output_tokens: 50 },
-    });
-
-    (Anthropic as jest.MockedClass<typeof Anthropic>).mockImplementation(
-      () => ({ messages: { create: mockCreate } }) as unknown as InstanceType<typeof Anthropic>
+    mockCreate.mockResolvedValue(
+      jsonReply({
+        intent: "update_schedule",
+        confidence: 0.97,
+        params: { service_type: "shabbat_evening", time: "19:30", day_of_week: 5 },
+        needs_confirmation: true,
+        human_summary: "Office du Chabbat soir à 19h30 le vendredi",
+      })
     );
 
     const result = await parseIntent("Office du Chabbat soir à 19h30");
@@ -81,31 +57,34 @@ describe("parseIntent", () => {
     expect(result.needs_confirmation).toBe(true);
   });
 
-  it("detecte une mise à jour du mot du rabbin", async () => {
-    const mockCreate = jest.fn().mockResolvedValue({
-      id: "msg_2",
-      type: "message",
-      role: "assistant",
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            intent: "update_rabbi_word",
-            confidence: 0.99,
-            params: { text: "Chabbat chalom à tous !" },
-            needs_confirmation: false,
-            human_summary: "Mise à jour du message du rabbin",
-          }),
-        },
-      ],
-      model: "claude-haiku-4-5-20251001",
-      stop_reason: "end_turn",
-      stop_sequence: null,
-      usage: { input_tokens: 10, output_tokens: 40 },
-    });
+  it("passe le modèle et le prompt système à la brique", async () => {
+    mockCreate.mockResolvedValue(
+      jsonReply({
+        intent: "query_status",
+        confidence: 0.9,
+        params: {},
+        needs_confirmation: false,
+        human_summary: "Consultation",
+      })
+    );
 
-    (Anthropic as jest.MockedClass<typeof Anthropic>).mockImplementation(
-      () => ({ messages: { create: mockCreate } }) as unknown as InstanceType<typeof Anthropic>
+    await parseIntent("infos ?");
+
+    const call = mockCreate.mock.calls[0][0];
+    expect(call.model).toBe("claude-haiku-4-5-20251001");
+    expect(call.max_tokens).toBe(512);
+    expect(call.system).toContain("synagogues");
+  });
+
+  it("detecte une mise à jour du mot du rabbin", async () => {
+    mockCreate.mockResolvedValue(
+      jsonReply({
+        intent: "update_rabbi_word",
+        confidence: 0.99,
+        params: { text: "Chabbat chalom à tous !" },
+        needs_confirmation: false,
+        human_summary: "Mise à jour du message du rabbin",
+      })
     );
 
     const result = await parseIntent("Nouveau message du rabbin : Chabbat chalom à tous !");
@@ -115,30 +94,14 @@ describe("parseIntent", () => {
   });
 
   it("retourne unclear pour un message incomprehensible", async () => {
-    const mockCreate = jest.fn().mockResolvedValue({
-      id: "msg_3",
-      type: "message",
-      role: "assistant",
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            intent: "unclear",
-            confidence: 0.1,
-            params: { reason: "Message sans sens" },
-            needs_confirmation: false,
-            human_summary: "Je n'ai pas compris votre demande.",
-          }),
-        },
-      ],
-      model: "claude-haiku-4-5-20251001",
-      stop_reason: "end_turn",
-      stop_sequence: null,
-      usage: { input_tokens: 10, output_tokens: 20 },
-    });
-
-    (Anthropic as jest.MockedClass<typeof Anthropic>).mockImplementation(
-      () => ({ messages: { create: mockCreate } }) as unknown as InstanceType<typeof Anthropic>
+    mockCreate.mockResolvedValue(
+      jsonReply({
+        intent: "unclear",
+        confidence: 0.1,
+        params: { reason: "Message sans sens" },
+        needs_confirmation: false,
+        human_summary: "Je n'ai pas compris votre demande.",
+      })
     );
 
     const result = await parseIntent("azeqsd blabla 123");
@@ -147,30 +110,14 @@ describe("parseIntent", () => {
   });
 
   it("detecte une mise à jour de lien social", async () => {
-    const mockCreate = jest.fn().mockResolvedValue({
-      id: "msg_4",
-      type: "message",
-      role: "assistant",
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            intent: "update_social",
-            confidence: 0.95,
-            params: { platform: "facebook", url: "https://facebook.com/synagogue.orhaim" },
-            needs_confirmation: false,
-            human_summary: "Mise à jour du lien Facebook",
-          }),
-        },
-      ],
-      model: "claude-haiku-4-5-20251001",
-      stop_reason: "end_turn",
-      stop_sequence: null,
-      usage: { input_tokens: 10, output_tokens: 30 },
-    });
-
-    (Anthropic as jest.MockedClass<typeof Anthropic>).mockImplementation(
-      () => ({ messages: { create: mockCreate } }) as unknown as InstanceType<typeof Anthropic>
+    mockCreate.mockResolvedValue(
+      jsonReply({
+        intent: "update_social",
+        confidence: 0.95,
+        params: { platform: "facebook", url: "https://facebook.com/synagogue.orhaim" },
+        needs_confirmation: false,
+        human_summary: "Mise à jour du lien Facebook",
+      })
     );
 
     const result = await parseIntent(
@@ -181,55 +128,59 @@ describe("parseIntent", () => {
   });
 
   it("gere un JSON invalide retourne par le modele", async () => {
-    const mockCreate = jest.fn().mockResolvedValue({
-      id: "msg_5",
-      type: "message",
-      role: "assistant",
-      content: [{ type: "text", text: "Désolé, je ne peux pas répondre." }],
-      model: "claude-haiku-4-5-20251001",
-      stop_reason: "end_turn",
-      stop_sequence: null,
-      usage: { input_tokens: 10, output_tokens: 10 },
-    });
-
-    (Anthropic as jest.MockedClass<typeof Anthropic>).mockImplementation(
-      () => ({ messages: { create: mockCreate } }) as unknown as InstanceType<typeof Anthropic>
-    );
+    mockCreate.mockResolvedValue(textReply("Désolé, je ne peux pas répondre."));
 
     const result = await parseIntent("test");
     expect(result.intent).toBe("unclear");
     expect(result.confidence).toBe(0);
   });
 
-  it("detecte une demande de statut en hebreu translittere", async () => {
-    const mockCreate = jest.fn().mockResolvedValue({
-      id: "msg_6",
-      type: "message",
-      role: "assistant",
-      content: [
+  it("ignore un bloc thinking en tête de réponse", async () => {
+    // Régression : l'ancien code lisait `content[0]` et retombait en "unclear"
+    // dès que la pensée adaptative insère un bloc `thinking` devant le texte.
+    mockCreate.mockResolvedValue(
+      reply([
+        { type: "thinking", thinking: "L'utilisateur veut changer un horaire." },
         {
           type: "text",
           text: JSON.stringify({
-            intent: "query_status",
-            confidence: 0.92,
-            params: {},
+            intent: "update_schedule",
+            confidence: 0.95,
+            params: { service_type: "weekday_mincha", time: "18:00" },
             needs_confirmation: false,
-            human_summary: "Consultation des informations de la synagogue",
+            human_summary: "Mincha en semaine à 18h00",
           }),
         },
-      ],
-      model: "claude-haiku-4-5-20251001",
-      stop_reason: "end_turn",
-      stop_sequence: null,
-      usage: { input_tokens: 10, output_tokens: 25 },
-    });
+      ])
+    );
 
-    (Anthropic as jest.MockedClass<typeof Anthropic>).mockImplementation(
-      () => ({ messages: { create: mockCreate } }) as unknown as InstanceType<typeof Anthropic>
+    const result = await parseIntent("Mincha à 18h en semaine");
+    expect(result.intent).toBe("update_schedule");
+    expect(result.params.service_type).toBe("weekday_mincha");
+  });
+
+  it("retente un 429 transitoire au lieu de dégrader en unclear", async () => {
+    const rateLimited = Object.assign(new Error("rate limited"), { status: 429 });
+    mockCreate.mockRejectedValueOnce(rateLimited).mockResolvedValueOnce(
+      jsonReply({
+        intent: "query_status",
+        confidence: 0.9,
+        params: {},
+        needs_confirmation: false,
+        human_summary: "Consultation des informations",
+      })
     );
 
     const result = await parseIntent("Ma snif, quelles sont les infos ?");
     expect(result.intent).toBe("query_status");
-    expect(result.confidence).toBeGreaterThan(0.7);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
+  });
+
+  it("laisse remonter une panne d'API plutôt que de la maquiller en unclear", async () => {
+    mockCreate.mockRejectedValue(
+      Object.assign(new Error("bad request"), { status: 400 })
+    );
+
+    await expect(parseIntent("test")).rejects.toThrow("bad request");
   });
 });

@@ -12,7 +12,7 @@
     "test:conversation": "ts-node --project tsconfig.scripts.json scripts/test-conversation.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.124.0",
     "@supabase/supabase-js": "^2.49.4",
     "next": "14.2.29",
     "react": "^18",
