@@ -10,8 +10,8 @@ Concept : un WhatsApp envoyé = la page publique se met à jour. Zéro interface
 - **Stack :** Next.js 14 App Router + Supabase + Claude Haiku + Hebcal + Tailwind
 - **Déploiement :** Vercel actif depuis 27/04/2026 — prod `https://shul-two.vercel.app` (HTTP 200 vérifié 23/06/2026)
 - **Statut : ⏸ PAUSE décidée par David le 25/09/2026.** Ne rien proposer ni relancer tant que David ne lève pas la pause (voir « État courant »).
-- **Domaine public LIVE : `https://washule.com`** (titre « Washule », https OK — vérifié 25/06/2026). **DNS chez GoDaddy** (ns*.domaincontrol.com), A = 13.248.243.5 (AWS) → DNS non éditable par Claude (pas d'accès GoDaddy). **Propriété GSC `washule.com` créée et vérifiée par David le 25/06/2026.** ⚠️ La mention « pas déployé » d'anciennes fiches/TASKS est **fausse** : le projet est en ligne sur washule.com.
-- **Ancien domaine cible :** shul.fr (jamais acquis ; washule.com l'a remplacé)
+- **Domaine public LIVE : `https://washul.com`** (308 → `https://www.washul.com`, redirection canonique normale). **DNS chez GoDaddy** (ns*.domaincontrol.com), A = 13.248.243.5 (AWS) → DNS non éditable par Claude (pas d'accès GoDaddy). **Propriété GSC `washul.com` créée et vérifiée par David le 25/06/2026** (confirmé par mail Search Console du 03/07/2026 sur la propriété `washul.com` ; compte WhatsApp Business « WAshul ») — tranché par David le 25/09/2026, la « correction de typo » du 25/06 était juste. **`washule.com` répond aussi 200 : rôle non établi** (ancien domaine ? coquille enregistrée ?), à ne pas confondre avec le domaine canonique. ⚠️ La mention « pas déployé » d'anciennes fiches/TASKS est **fausse** : le projet est en ligne sur washul.com.
+- **Ancien domaine cible :** shul.fr (jamais acquis ; washul.com l'a remplacé)
 
 ## Architecture
 
@@ -63,7 +63,7 @@ Effet de bord assumé : `@anthropic-ai/sdk` est passé de `^0.39.0` à `^0.124.0
 ## État courant (25/09/2026)
 
 - ⏸ **Projet en PAUSE** (décision David du 25/09/2026). Le site reste en ligne, aucun travail prévu.
-- ⚠️ **Incohérence de domaine constatée le 25/09/2026** (curl) : `https://washule.com` répond **200**, `https://washul.com` répond **308 → https://www.washul.com/**. Or seo-monitor suit `sc-domain:washul.com` (`seo-monitor/config.yaml`), alors que la propriété GSC créée par David le 25/06/2026 est `washule.com` (cf. Identité ci-dessus). seo-monitor surveille donc peut-être la mauvaise propriété. Fait noté, **rien corrigé** (pause) — à trancher à la reprise : quel est le domaine canonique de SHUL, et quelle propriété GSC suivre.
+- ✅ **Domaine confirmé le 25/09/2026** : `washul.com` est le domaine canonique et la propriété GSC réelle (voir Identité ci-dessus) — seo-monitor (`sc-domain:washul.com`) suit la bonne propriété. `washule.com` répond aussi 200, rôle non établi.
 
 ### Détail technique au 23/06/2026
 
