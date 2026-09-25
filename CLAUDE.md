@@ -9,6 +9,7 @@ Concept : un WhatsApp envoyé = la page publique se met à jour. Zéro interface
 - **Chemin local :** `C:\Users\David\AI\SHUL\`
 - **Stack :** Next.js 14 App Router + Supabase + Claude Haiku + Hebcal + Tailwind
 - **Déploiement :** Vercel actif depuis 27/04/2026 — prod `https://shul-two.vercel.app` (HTTP 200 vérifié 23/06/2026)
+- **Statut : ⏸ PAUSE décidée par David le 25/09/2026.** Ne rien proposer ni relancer tant que David ne lève pas la pause (voir « État courant »).
 - **Domaine public LIVE : `https://washule.com`** (titre « Washule », https OK — vérifié 25/06/2026). **DNS chez GoDaddy** (ns*.domaincontrol.com), A = 13.248.243.5 (AWS) → DNS non éditable par Claude (pas d'accès GoDaddy). **Propriété GSC `washule.com` créée et vérifiée par David le 25/06/2026.** ⚠️ La mention « pas déployé » d'anciennes fiches/TASKS est **fausse** : le projet est en ligne sur washule.com.
 - **Ancien domaine cible :** shul.fr (jamais acquis ; washule.com l'a remplacé)
 
@@ -59,7 +60,12 @@ ProcedureFrance, qui vendorent la même brique).
 Effet de bord assumé : `@anthropic-ai/sdk` est passé de `^0.39.0` à `^0.124.0`
 (la brique utilise des types absents de 0.39), alignant SHUL sur YONI.
 
-## État au 23/06/2026
+## État courant (25/09/2026)
+
+- ⏸ **Projet en PAUSE** (décision David du 25/09/2026). Le site reste en ligne, aucun travail prévu.
+- ⚠️ **Incohérence de domaine constatée le 25/09/2026** (curl) : `https://washule.com` répond **200**, `https://washul.com` répond **308 → https://www.washul.com/**. Or seo-monitor suit `sc-domain:washul.com` (`seo-monitor/config.yaml`), alors que la propriété GSC créée par David le 25/06/2026 est `washule.com` (cf. Identité ci-dessus). seo-monitor surveille donc peut-être la mauvaise propriété. Fait noté, **rien corrigé** (pause) — à trancher à la reprise : quel est le domaine canonique de SHUL, et quelle propriété GSC suivre.
+
+### Détail technique au 23/06/2026
 
 **Code :** MVP complet, déployé sur Vercel (prod live). Supabase et provider WhatsApp réels pas encore branchés.
 
@@ -81,7 +87,7 @@ Ce qui manque avant lancement réel :
 5. Domaine shul.fr ou équivalent (non acquis)
 6. Test de bout-en-bout avec un vrai téléphone
 
-⚠️ **3 fichiers modifiés non commités** (état au 23/06/2026) : `.env.local.example`, `lib/whatsapp/handlers.ts`, `tailwind.config.ts` — ces fichiers contiennent les corrections de bugs du 12/06 (voir section Bugs ci-dessous) mais ne sont PAS encore commités ni poussés.
+Arbre git propre (vérifié le 25/09/2026, `git status` vide, HEAD `d9b84c4`) : l'ancienne mention « 3 fichiers modifiés non commités » du 23/06 n'est plus vraie.
 
 ## Variables d'environnement requises
 
